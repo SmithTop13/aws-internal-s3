@@ -188,6 +188,21 @@
             cursor: not-allowed;
         }
 
+        .new-folder-btn {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .new-folder-btn:hover {
+            background-color: #138496;
+        }
+
         .file-list-preview {
             margin-top: 1rem;
             max-height: 150px;
@@ -446,6 +461,7 @@
                     </select>
                 </div>
                 <button id="upload-btn" class="upload-btn" disabled>Upload</button>
+                <button id="new-folder-btn" class="new-folder-btn">+ New Folder</button>
             </div>
             <div id="file-list-preview" class="file-list-preview"></div>
             <div id="upload-progress" class="upload-progress">
@@ -484,6 +500,23 @@
         </div>
     </div>
 
+    <!-- New Folder Modal -->
+    <div id="new-folder-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="close-folder-modal">&times;</span>
+            <div class="modal-header">Create New Folder</div>
+            <div class="modal-body">
+                <label for="folder-name-input">Folder name:</label>
+                <input type="text" id="folder-name-input" placeholder="Enter folder name" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; margin-top: 0.5rem;">
+                <div id="folder-name-error" style="color: #721c24; font-size: 0.9rem; margin-top: 0.5rem; display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-download" id="create-folder-btn">Create</button>
+                <button class="btn" id="cancel-folder-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentPrefix = '';
         let selectedFileKey = '';
@@ -502,6 +535,13 @@
         const progressFill = document.getElementById('progress-fill');
         const progressText = document.getElementById('progress-text');
         const uploadAclSelect = document.getElementById('upload-acl-select');
+        const newFolderBtn = document.getElementById('new-folder-btn');
+        const newFolderModal = document.getElementById('new-folder-modal');
+        const closeFolderModal = document.getElementById('close-folder-modal');
+        const folderNameInput = document.getElementById('folder-name-input');
+        const folderNameError = document.getElementById('folder-name-error');
+        const createFolderBtn = document.getElementById('create-folder-btn');
+        const cancelFolderBtn = document.getElementById('cancel-folder-btn');
         const aclModal = document.getElementById('acl-modal');
         const aclFileNameSpan = document.getElementById('acl-file-name');
         const aclSelect = document.getElementById('acl-select');
@@ -525,6 +565,16 @@
                     handlePathNavigation();
                 }
             });
+            newFolderBtn.addEventListener('click', openNewFolderModal);
+            closeFolderModal.addEventListener('click', closeNewFolderModal);
+            cancelFolderBtn.addEventListener('click', closeNewFolderModal);
+            createFolderBtn.addEventListener('click', createNewFolder);
+            folderNameInput.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    createNewFolder();
+                }
+            });
+            folderNameInput.addEventListener('input', clearFolderNameError);
             closeModal.addEventListener('click', closeAclModal);
             cancelAclBtn.addEventListener('click', closeAclModal);
             updateAclBtn.addEventListener('click', updateAcl);
@@ -532,6 +582,9 @@
             window.addEventListener('click', function(event) {
                 if (event.target === aclModal) {
                     closeAclModal();
+                }
+                if (event.target === newFolderModal) {
+                    closeNewFolderModal();
                 }
             });
         }
@@ -946,6 +999,100 @@
             .catch(error => {
                 console.error('ACL update error:', error);
                 showMessage('ACL update failed', 'error');
+            });
+        }
+
+        function openNewFolderModal() {
+            newFolderModal.style.display = 'block';
+            folderNameInput.value = '';
+            clearFolderNameError();
+            folderNameInput.focus();
+        }
+
+        function closeNewFolderModal() {
+            newFolderModal.style.display = 'none';
+            folderNameInput.value = '';
+            clearFolderNameError();
+        }
+
+        function clearFolderNameError() {
+            folderNameError.style.display = 'none';
+            folderNameError.textContent = '';
+        }
+
+        function showFolderNameError(message) {
+            folderNameError.textContent = message;
+            folderNameError.style.display = 'block';
+        }
+
+        function validateFolderName(name) {
+            if (!name || name.trim() === '') {
+                return 'Folder name cannot be empty';
+            }
+            
+            // Remove leading/trailing spaces
+            name = name.trim();
+            
+            // Check length
+            if (name.length > 255) {
+                return 'Folder name cannot exceed 255 characters';
+            }
+            
+            // Check for invalid characters
+            const invalidChars = /[^a-zA-Z0-9\-_.]/;
+            if (invalidChars.test(name)) {
+                return 'Folder name can only contain letters, numbers, hyphens, underscores, and periods';
+            }
+            
+            // Check if it starts with a period or hyphen
+            if (name.startsWith('.') || name.startsWith('-')) {
+                return 'Folder name cannot start with a period or hyphen';
+            }
+            
+            return null; // Valid
+        }
+
+        function createNewFolder() {
+            const folderName = folderNameInput.value.trim();
+            
+            // Validate folder name
+            const validationError = validateFolderName(folderName);
+            if (validationError) {
+                showFolderNameError(validationError);
+                return;
+            }
+            
+            // Disable button during creation
+            createFolderBtn.disabled = true;
+            createFolderBtn.textContent = 'Creating...';
+            
+            fetch('/api/create-directory', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: folderName,
+                    prefix: currentPrefix
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    closeNewFolderModal();
+                    loadFiles(); // Refresh file list
+                } else {
+                    showFolderNameError(data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Folder creation error:', error);
+                showFolderNameError('Failed to create folder due to network error');
+            })
+            .finally(() => {
+                createFolderBtn.disabled = false;
+                createFolderBtn.textContent = 'Create';
             });
         }
     </script>

@@ -235,6 +235,74 @@ def update_acl():
             'error': str(e)
         }), 500
 
+@app.route('/api/create-directory', methods=['POST'])
+def create_directory():
+    data = request.get_json()
+    
+    if not data or 'name' not in data:
+        return jsonify({
+            'success': False,
+            'error': 'Missing required field: name'
+        }), 400
+    
+    directory_name = data['name'].strip()
+    prefix = data.get('prefix', '')
+    
+    # Validate directory name
+    if not directory_name:
+        return jsonify({
+            'success': False,
+            'error': 'Directory name cannot be empty'
+        }), 400
+    
+    # Remove any slashes from the directory name and add trailing slash
+    directory_name = directory_name.strip('/').replace('/', '-')
+    
+    # Validate directory name characters
+    import re
+    if not re.match(r'^[a-zA-Z0-9\-_.]+$', directory_name):
+        return jsonify({
+            'success': False,
+            'error': 'Directory name can only contain letters, numbers, hyphens, underscores, and periods'
+        }), 400
+    
+    # Create the full directory path
+    directory_key = f"{prefix}{directory_name}/"
+    
+    try:
+        # Check if directory already exists
+        response = s3_client.list_objects_v2(
+            Bucket=BUCKET_NAME,
+            Prefix=directory_key,
+            MaxKeys=1
+        )
+        
+        if 'Contents' in response and len(response['Contents']) > 0:
+            return jsonify({
+                'success': False,
+                'error': f'Directory "{directory_name}" already exists'
+            }), 409
+        
+        # Create directory by uploading empty object with trailing slash
+        s3_client.put_object(
+            Bucket=BUCKET_NAME,
+            Key=directory_key,
+            Body=b'',
+            ServerSideEncryption='AES256'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Directory "{directory_name}" created successfully',
+            'directory_key': directory_key
+        })
+        
+    except ClientError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/download')
 def download_file():
     key = request.args.get('key')

@@ -6,6 +6,7 @@ A simple, self-hosted web-based file browser for Amazon S3 buckets, designed for
 
 ### 🗂️ File Management
 - **Browse S3 buckets** with folder navigation
+- **Create new directories** with one-click folder creation
 - **Upload single or multiple files** with drag-and-drop support
 - **Download files** with presigned URLs
 - **Navigate directories** with breadcrumb navigation and direct path input
@@ -139,7 +140,15 @@ Apply the included IAM policy (`iam-policy.json`) to your AWS user or role:
 3. **Select access level** (Private, Public Read, etc.)
 4. **Click "Upload"** and monitor progress
 
+### Directory Creation
+1. **Navigate** to the desired parent directory
+2. **Click "+ New Folder"** button next to the upload controls
+3. **Enter folder name** (letters, numbers, hyphens, underscores, periods allowed)
+4. **Press Enter** or click "Create" button
+5. **New folder appears** in the directory listing automatically
+
 ### File Management
+- **Create new folders** by clicking the "+ New Folder" button
 - **Download files** using the download button
 - **Manage ACLs** using the ACL button for individual files
 - **View file information** including size and last modified date
@@ -195,6 +204,7 @@ The application provides RESTful API endpoints:
 | `/api/upload` | POST | Upload files with ACL |
 | `/api/download` | GET | Generate download URLs |
 | `/api/acl` | POST | Update file ACL |
+| `/api/create-directory` | POST | Create new directories |
 | `/api/bucket-info` | GET | Get bucket information |
 
 ## Troubleshooting

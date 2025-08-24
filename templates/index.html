@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS S3 Internal Browser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .header {
+            background-color: #232f3e;
+            color: white;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 300;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .breadcrumb {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .path-input-container {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .path-input {
+            flex-grow: 1;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .path-input:focus {
+            outline: none;
+            border-color: #0073bb;
+            box-shadow: 0 0 0 2px rgba(0, 115, 187, 0.1);
+        }
+
+        .path-navigate-btn {
+            background-color: #0073bb;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .path-navigate-btn:hover {
+            background-color: #005a9b;
+        }
+
+        .path-navigate-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .breadcrumb a {
+            color: #0073bb;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        .controls {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .upload-area {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .acl-selector {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .acl-selector label {
+            font-weight: 500;
+            color: #666;
+            white-space: nowrap;
+            font-size: 0.9rem;
+        }
+
+        .acl-select {
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            background-color: white;
+            min-width: 140px;
+        }
+
+        .acl-select:focus {
+            outline: none;
+            border-color: #0073bb;
+            box-shadow: 0 0 0 2px rgba(0, 115, 187, 0.1);
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            background-color: #0073bb;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .file-input-label:hover {
+            background-color: #005a9b;
+        }
+
+        .upload-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .upload-btn:hover {
+            background-color: #218838;
+        }
+
+        .upload-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .file-list-preview {
+            margin-top: 1rem;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            display: none;
+        }
+
+        .file-preview-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-preview-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-preview-name {
+            flex-grow: 1;
+            font-family: monospace;
+        }
+
+        .file-preview-size {
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        .upload-progress {
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #28a745;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+
+        .file-list {
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s;
+        }
+
+        .file-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .file-info {
+            flex-grow: 1;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .file-name.folder {
+            color: #0073bb;
+        }
+
+        .file-meta {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.25rem 0.5rem;
+            border: none;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-download {
+            background-color: #0073bb;
+            color: white;
+        }
+
+        .btn-download:hover {
+            background-color: #005a9b;
+        }
+
+        .btn-acl {
+            background-color: #ffc107;
+            color: #000;
+        }
+
+        .btn-acl:hover {
+            background-color: #e0a800;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            border: 1px solid #c3e6cb;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 2rem;
+            border-radius: 4px;
+            width: 400px;
+            max-width: 90%;
+        }
+
+        .modal-header {
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .modal-body {
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: -1rem;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>AWS S3 Internal Browser</h1>
+    </div>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <span id="breadcrumb-path">s3://</span>
+        </div>
+
+        <div class="path-input-container">
+            <label for="path-input" style="font-weight: 500; color: #666; white-space: nowrap;">Navigate to:</label>
+            <input type="text" id="path-input" class="path-input" placeholder="folder1/folder2/" value="">
+            <button id="path-navigate-btn" class="path-navigate-btn">Go</button>
+        </div>
+
+        <div class="controls">
+            <div class="upload-area">
+                <div class="file-input-wrapper">
+                    <input type="file" id="file-input" accept="*/*" multiple>
+                    <label for="file-input" class="file-input-label">Choose Files</label>
+                </div>
+                <span id="selected-file">No files selected</span>
+                <div class="acl-selector">
+                    <label for="upload-acl-select">Access:</label>
+                    <select id="upload-acl-select" class="acl-select">
+                        <option value="private">Private</option>
+                        <option value="public-read">Public Read</option>
+                        <option value="public-read-write">Public Read Write</option>
+                        <option value="authenticated-read">Authenticated Read</option>
+                    </select>
+                </div>
+                <button id="upload-btn" class="upload-btn" disabled>Upload</button>
+            </div>
+            <div id="file-list-preview" class="file-list-preview"></div>
+            <div id="upload-progress" class="upload-progress">
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+                <div id="progress-text" class="progress-text"></div>
+            </div>
+        </div>
+
+        <div id="messages"></div>
+
+        <div class="file-list" id="file-list">
+            <div class="loading">Loading files...</div>
+        </div>
+    </div>
+
+    <!-- ACL Modal -->
+    <div id="acl-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div class="modal-header">Update Access Control</div>
+            <div class="modal-body">
+                <label for="acl-select">Select ACL for: <strong id="acl-file-name"></strong></label>
+                <select id="acl-select">
+                    <option value="private">Private</option>
+                    <option value="public-read">Public Read</option>
+                    <option value="public-read-write">Public Read Write</option>
+                    <option value="authenticated-read">Authenticated Read</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-download" id="update-acl-btn">Update</button>
+                <button class="btn" id="cancel-acl-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPrefix = '';
+        let selectedFileKey = '';
+
+        // DOM elements
+        const fileInput = document.getElementById('file-input');
+        const selectedFileSpan = document.getElementById('selected-file');
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileList = document.getElementById('file-list');
+        const breadcrumbPath = document.getElementById('breadcrumb-path');
+        const messagesDiv = document.getElementById('messages');
+        const pathInput = document.getElementById('path-input');
+        const pathNavigateBtn = document.getElementById('path-navigate-btn');
+        const fileListPreview = document.getElementById('file-list-preview');
+        const uploadProgress = document.getElementById('upload-progress');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+        const uploadAclSelect = document.getElementById('upload-acl-select');
+        const aclModal = document.getElementById('acl-modal');
+        const aclFileNameSpan = document.getElementById('acl-file-name');
+        const aclSelect = document.getElementById('acl-select');
+        const updateAclBtn = document.getElementById('update-acl-btn');
+        const cancelAclBtn = document.getElementById('cancel-acl-btn');
+        const closeModal = document.getElementsByClassName('close')[0];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFiles();
+            setupEventListeners();
+            checkBucketAclSupport();
+        });
+
+        function setupEventListeners() {
+            fileInput.addEventListener('change', handleFileSelection);
+            uploadBtn.addEventListener('click', uploadFile);
+            pathNavigateBtn.addEventListener('click', handlePathNavigation);
+            pathInput.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    handlePathNavigation();
+                }
+            });
+            closeModal.addEventListener('click', closeAclModal);
+            cancelAclBtn.addEventListener('click', closeAclModal);
+            updateAclBtn.addEventListener('click', updateAcl);
+
+            window.addEventListener('click', function(event) {
+                if (event.target === aclModal) {
+                    closeAclModal();
+                }
+            });
+        }
+
+        function handleFileSelection() {
+            const files = fileInput.files;
+            
+            if (files && files.length > 0) {
+                // Update selected files text
+                if (files.length === 1) {
+                    selectedFileSpan.textContent = `${files[0].name}`;
+                } else {
+                    selectedFileSpan.textContent = `${files.length} files selected`;
+                }
+                
+                // Show file preview
+                showFilePreview(files);
+                uploadBtn.disabled = false;
+            } else {
+                selectedFileSpan.textContent = 'No files selected';
+                hideFilePreview();
+                uploadBtn.disabled = true;
+            }
+        }
+
+        function showFilePreview(files) {
+            let previewHtml = '';
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const fileSize = formatFileSize(file.size);
+                
+                previewHtml += `
+                    <div class="file-preview-item">
+                        <span class="file-preview-name">${file.name}</span>
+                        <span class="file-preview-size">${fileSize}</span>
+                    </div>
+                `;
+            }
+            
+            fileListPreview.innerHTML = previewHtml;
+            fileListPreview.style.display = 'block';
+        }
+
+        function hideFilePreview() {
+            fileListPreview.style.display = 'none';
+            fileListPreview.innerHTML = '';
+        }
+
+        function showMessage(message, type = 'success') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            messagesDiv.appendChild(messageDiv);
+
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+
+        function updateBreadcrumb() {
+            const parts = currentPrefix.split('/').filter(part => part);
+            let path = 's3://';
+            let breadcrumbHtml = path;
+
+            breadcrumbHtml += '<a onclick="navigateToPrefix(\'\')">bucket</a>';
+
+            for (let i = 0; i < parts.length; i++) {
+                const prefix = parts.slice(0, i + 1).join('/') + '/';
+                breadcrumbHtml += ` / <a onclick="navigateToPrefix('${prefix}')">${parts[i]}</a>`;
+            }
+
+            breadcrumbPath.innerHTML = breadcrumbHtml;
+        }
+
+        function navigateToPrefix(prefix) {
+            currentPrefix = prefix;
+            updatePathInput();
+            loadFiles();
+        }
+
+        function handlePathNavigation() {
+            const inputPath = pathInput.value.trim();
+            const sanitizedPath = sanitizePath(inputPath);
+            
+            // Validate path length
+            if (sanitizedPath.length > 1024) {
+                showMessage('Path is too long. Maximum length is 1024 characters.', 'error');
+                pathInput.value = currentPrefix;
+                return;
+            }
+            
+            // Show sanitization feedback
+            if (sanitizedPath !== inputPath) {
+                pathInput.value = sanitizedPath;
+                if (sanitizedPath !== inputPath.trim()) {
+                    showMessage('Path has been sanitized to remove invalid characters.', 'success');
+                }
+            }
+            
+            // Only navigate if path changed
+            if (sanitizedPath !== currentPrefix) {
+                pathNavigateBtn.disabled = true;
+                pathNavigateBtn.textContent = 'Loading...';
+                
+                const originalPrefix = currentPrefix;
+                currentPrefix = sanitizedPath;
+                
+                // Load files and handle potential errors
+                const originalLoadFiles = loadFiles;
+                const restoreFunction = function() {
+                    pathNavigateBtn.disabled = false;
+                    pathNavigateBtn.textContent = 'Go';
+                };
+                
+                fetch(`/api/files?prefix=${encodeURIComponent(currentPrefix)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            updateBreadcrumb();
+                            updatePathInput();
+                            renderFileList(data.folders, data.files);
+                        } else {
+                            // Revert to original prefix on error
+                            currentPrefix = originalPrefix;
+                            updatePathInput();
+                            showMessage(`Path "${sanitizedPath}" not found or inaccessible.`, 'error');
+                        }
+                        restoreFunction();
+                    })
+                    .catch(error => {
+                        console.error('Error navigating to path:', error);
+                        // Revert to original prefix on error
+                        currentPrefix = originalPrefix;
+                        updatePathInput();
+                        showMessage(`Failed to navigate to path "${sanitizedPath}".`, 'error');
+                        restoreFunction();
+                    });
+            }
+        }
+
+        function sanitizePath(path) {
+            if (!path) return '';
+            
+            // Remove leading/trailing whitespace and slashes
+            path = path.trim().replace(/^\/+|\/+$/g, '');
+            
+            // Ensure path ends with '/' if not empty
+            if (path && !path.endsWith('/')) {
+                path += '/';
+            }
+            
+            // Remove double slashes and invalid characters
+            path = path.replace(/\/+/g, '/');
+            
+            // Basic validation - only allow alphanumeric, hyphens, underscores, periods, and slashes
+            path = path.replace(/[^a-zA-Z0-9\-_./]/g, '');
+            
+            return path;
+        }
+
+        function updatePathInput() {
+            pathInput.value = currentPrefix;
+        }
+
+        function checkBucketAclSupport() {
+            fetch('/api/bucket-info')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && !data.supports_acls) {
+                        // Disable non-private ACL options
+                        const options = uploadAclSelect.options;
+                        for (let i = 0; i < options.length; i++) {
+                            if (options[i].value !== 'private') {
+                                options[i].disabled = true;
+                                options[i].text += ' (Not supported - bucket has ACLs disabled)';
+                            }
+                        }
+                        // Ensure private is selected
+                        uploadAclSelect.value = 'private';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking bucket ACL support:', error);
+                });
+        }
+
+        function loadFiles() {
+            fileList.innerHTML = '<div class="loading">Loading files...</div>';
+            updateBreadcrumb();
+            updatePathInput();
+
+            fetch(`/api/files?prefix=${encodeURIComponent(currentPrefix)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderFileList(data.folders, data.files);
+                    } else {
+                        showMessage(`Failed to load path "${currentPrefix}": ${data.error}`, 'error');
+                        fileList.innerHTML = '<div class="error">Failed to load files from this path</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading files:', error);
+                    showMessage(`Network error loading path "${currentPrefix}"`, 'error');
+                    fileList.innerHTML = '<div class="error">Failed to load files</div>';
+                });
+        }
+
+        function renderFileList(folders, files) {
+            let html = '';
+
+            // Add parent directory navigation if not at root
+            if (currentPrefix) {
+                const parentPrefix = currentPrefix.split('/').slice(0, -2).join('/');
+                const finalParentPrefix = parentPrefix ? parentPrefix + '/' : '';
+                html += `
+                    <div class="file-item">
+                        <div class="file-icon">📁</div>
+                        <div class="file-info">
+                            <div class="file-name folder" onclick="navigateToPrefix('${finalParentPrefix}')">
+                                .. (parent directory)
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Render folders
+            folders.forEach(folder => {
+                html += `
+                    <div class="file-item">
+                        <div class="file-icon">📁</div>
+                        <div class="file-info">
+                            <div class="file-name folder" onclick="navigateToPrefix('${folder.path}')">
+                                ${folder.name}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Render files
+            files.forEach(file => {
+                const fileSize = formatFileSize(file.size);
+                const lastModified = new Date(file.last_modified).toLocaleString();
+                
+                html += `
+                    <div class="file-item">
+                        <div class="file-icon">📄</div>
+                        <div class="file-info">
+                            <div class="file-name">${file.name}</div>
+                            <div class="file-meta">${fileSize} • ${lastModified}</div>
+                        </div>
+                        <div class="file-actions">
+                            <button class="btn btn-download" onclick="downloadFile('${file.path}')">
+                                Download
+                            </button>
+                            <button class="btn btn-acl" onclick="openAclModal('${file.path}', '${file.name}')">
+                                ACL
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (folders.length === 0 && files.length === 0) {
+                html = '<div class="loading">No files found in this directory</div>';
+            }
+
+            fileList.innerHTML = html;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function uploadFile() {
+            const files = fileInput.files;
+            if (!files || files.length === 0) return;
+
+            const formData = new FormData();
+            
+            // Add all selected files to form data
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+            formData.append('prefix', currentPrefix);
+            formData.append('acl', uploadAclSelect.value);
+
+            // Show progress and disable upload
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Uploading...';
+            const selectedAcl = uploadAclSelect.value;
+            const aclText = uploadAclSelect.options[uploadAclSelect.selectedIndex].text;
+            showUploadProgress(0, `Preparing to upload ${files.length} file(s) with ${aclText} access...`);
+
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideUploadProgress();
+                
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    
+                    // Show detailed results if there were any errors
+                    if (data.errors && data.errors.length > 0) {
+                        data.errors.forEach(error => {
+                            showMessage(error, 'error');
+                        });
+                    }
+                    
+                    loadFiles();
+                    clearFileSelection();
+                } else {
+                    showMessage(data.error, 'error');
+                    
+                    // Show individual errors if available
+                    if (data.errors && data.errors.length > 0) {
+                        data.errors.forEach(error => {
+                            showMessage(error, 'error');
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                hideUploadProgress();
+                showMessage('Upload failed due to network error', 'error');
+            })
+            .finally(() => {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload';
+            });
+        }
+
+        function showUploadProgress(percentage, message) {
+            uploadProgress.style.display = 'block';
+            progressFill.style.width = percentage + '%';
+            progressText.textContent = message;
+        }
+
+        function hideUploadProgress() {
+            uploadProgress.style.display = 'none';
+            progressFill.style.width = '0%';
+            progressText.textContent = '';
+        }
+
+        function clearFileSelection() {
+            fileInput.value = '';
+            selectedFileSpan.textContent = 'No files selected';
+            hideFilePreview();
+            uploadBtn.disabled = true;
+        }
+
+        function downloadFile(key) {
+            fetch(`/api/download?key=${encodeURIComponent(key)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.open(data.download_url, '_blank');
+                    } else {
+                        showMessage(data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Download error:', error);
+                    showMessage('Download failed', 'error');
+                });
+        }
+
+        function openAclModal(key, name) {
+            selectedFileKey = key;
+            aclFileNameSpan.textContent = name;
+            aclModal.style.display = 'block';
+        }
+
+        function closeAclModal() {
+            aclModal.style.display = 'none';
+            selectedFileKey = '';
+        }
+
+        function updateAcl() {
+            const acl = aclSelect.value;
+            
+            fetch('/api/acl', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    key: selectedFileKey,
+                    acl: acl
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    closeAclModal();
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('ACL update error:', error);
+                showMessage('ACL update failed', 'error');
+            });
+        }
+    </script>
+</body>
+</html>
